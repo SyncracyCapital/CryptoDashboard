@@ -11,6 +11,7 @@ from utils import merge_dataframes
 from metrics import Metric
 from processors import GlassNodeProcessor, CoinGeckoProcessor, YahooFinanceProcessor, FredProcessor, CoinGlassProcessor
 from utils import prepare_data
+from utils import big_number_formatter
 
 import streamlit as st
 
@@ -177,6 +178,47 @@ with start_date:
 with end_date:
     zoom_in_date_end = st.date_input('End Date', datetime.today())
 
+st.header('Bitcoin Metrics')
+st.markdown('-------------------------')
+
+# Current and average BTC metrics
+btc_mvrv_funding_metrics = st.columns(4)
+
+with btc_mvrv_funding_metrics[0]:
+    st.metric(label='Current MVRV', value=round(data_dict['BTC MVRV'].iloc[-1], 2))
+
+with btc_mvrv_funding_metrics[1]:
+    st.metric(label='Average MVRV', value=round(data_dict['BTC MVRV'].mean()))
+
+with btc_mvrv_funding_metrics[2]:
+    current_funding_rate = data_dict['BTC Funding Rate']['Aggregated'].iloc[-1]
+    st.metric(label='Current Funding Rate', value=f'{round(current_funding_rate, 2)}%')
+
+with btc_mvrv_funding_metrics[3]:
+    average_funding_rate = data_dict['BTC Funding Rate']['Aggregated'].loc[zoom_in_date_start:zoom_in_date_end].mean()
+    st.metric(label='Average Funding Rate (1YR)', value=f'{round(average_funding_rate, 2)}%')
+
+btc_oi_metrics = st.columns(4)
+
+with btc_oi_metrics[0]:
+    current_oi = data_dict['BTC Open Interest']['Aggregated'].iloc[-1]
+    st.metric(label='Current Open Interest', value=big_number_formatter(current_oi))
+
+with btc_oi_metrics[1]:
+    average_oi = data_dict['BTC Open Interest']['Aggregated'].loc[zoom_in_date_start:zoom_in_date_end].mean()
+    st.metric(label='Average Open Interest (1YR)', value=big_number_formatter(average_oi))
+
+with btc_oi_metrics[2]:
+    april_top = '2021-04-14'
+    april_top_oi = data_dict['BTC Open Interest']['Aggregated'].loc[april_top].values[0]
+    st.metric(label='2021 April Top OI', value=big_number_formatter(april_top_oi))
+
+with btc_oi_metrics[3]:
+    nov_top = '2021-11-10'
+    nov_top_oi = data_dict['BTC Open Interest']['Aggregated'].loc[nov_top].values[0]
+    st.metric(label='2021 November Top OI',
+              value=big_number_formatter(nov_top_oi))
+
 # Charts
 first_row = st.columns(3)
 
@@ -212,78 +254,40 @@ with first_row[0]:
 
     st.plotly_chart(fig, use_container_width=True)
 
-# BTC Realized Cap HODL Waves
+# BTC Aggregate Funding Rate
 with first_row[1]:
-    cols_to_keep = ['BTC Realized Cap HODL Waves']
+    cols_to_keep = ['BTC Funding Rate']
     df = merge_dataframes(data_dict, cols_to_keep)
-    df = df.dropna()
 
-    df_normalized = df.div(df.sum(axis=1), axis=0)
+    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
 
-    fig = px.area(df_normalized, labels={"value": "Percent (%)"},
-                  title='BTC: Realized Cap HODL Waves')
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_layout(xaxis_title=None, yaxis_title=None)
-    fig.update_yaxes(tickformat=".0%")
+    min_val = data_subset['Aggregated'].min()
+    max_val = data_subset['Aggregated'].max()
 
-    fig.update_layout(
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend_title_text=''
-    )
+    mask_positive = df['Aggregated'] >= 0
+    mask_negative = df['Aggregated'] < 0
 
-    st.plotly_chart(fig, use_container_width=True)
-
-# BTC Long Term Holder vs Short Term Holder
-with first_row[2]:
-    cols_to_keep = ['BTC LTH Supply', 'BTC STH Supply']
-    df = merge_dataframes(data_dict, cols_to_keep)
-    df = df.dropna()
-
-    # Create figure with secondary y-axis
+    # create figure
     fig = go.Figure()
 
-    # Add traces
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['BTC LTH Supply'],
-            name="BTC LTH Supply",
-            line=dict(color='#5218F8'),
-        )
-    )
+    # add positive bar
+    fig.add_trace(go.Bar(
+        x=df.index[mask_positive],
+        y=df['Aggregated'][mask_positive],
+        marker=dict(color='green'),
+        name='Positive Funding Rate'
+    ))
 
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df['BTC STH Supply'],
-            name="BTC STH Supply",
-            line=dict(color='#F8184E'),
-            yaxis="y2"
-        )
-    )
+    # add negative bar
+    fig.add_trace(go.Bar(
+        x=df.index[mask_negative],
+        y=df['Aggregated'][mask_negative],
+        marker=dict(color='red'),
+        name='Negative Funding Rate'
+    ))
 
-    # Create axis objects
     fig.update_layout(
-        yaxis=dict(
-            title="BTC LTH Supply",
-
-        ),
-        yaxis2=dict(
-            title="BTC STH Supply",
-            anchor="free",
-            overlaying="y",
-            side="right",
-            position=1
-        )
-    )
-
-    # Update layout properties
-    fig.update_layout(
-        title_text="BTC: Long-Term vs Short-Term Holder Supply",
+        title_text="BTC: Aggregate Funding Rate (8 hr)",
         title={
             'y': distance_from_plot,
             'x': 0,
@@ -296,9 +300,44 @@ with first_row[2]:
             xanchor="center",
             x=0.5,
             itemsizing='constant'
-        )
+        ),
+        barmode='relative'
     )
+
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_yaxes(range=[min_val, max_val])
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# BTC Total Open Interest
+with first_row[2]:
+    cols_to_keep = ['BTC Open Interest']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    cols_to_plot = [col for col in df.columns if col != 'Aggregated']
+    df = df.replace(0, np.nan)
+    df = df.interpolate(method='linear')
+
+    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
+
+    min_val = 0
+    max_val = data_subset['Aggregated'].max()
+
+    fig = px.area(df[cols_to_plot], title='BTC: Total OI by Exchange',
+                  labels={"value": "Percent (%)"})
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
+
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_yaxes(range=[min_val, max_val])
+
+    fig.update_layout(
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend_title_text=''
+    )
+
     st.plotly_chart(fig, use_container_width=True)
 
 # Second row
@@ -447,71 +486,53 @@ with second_row[2]:
 # Third Row
 third_row = st.columns(3)
 
-# BTC Total Open Interest
+# BTC Long Term Holder Supply
 with third_row[0]:
-    cols_to_keep = ['BTC Open Interest']
+    cols_to_keep = ['BTC LTH Supply', 'BTC STH Supply']
     df = merge_dataframes(data_dict, cols_to_keep)
-    cols_to_plot = [col for col in df.columns if col != 'Aggregated']
-    df = df.replace(0, np.nan)
-    df = df.interpolate(method='linear')
+    df = df.dropna()
 
-    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
-
-    min_val = 0
-    max_val = data_subset['Aggregated'].max()
-
-    fig = px.area(df[cols_to_plot], title='BTC: Total OI by Exchange',
-                  labels={"value": "Percent (%)"})
-    fig.update_layout(xaxis_title=None, yaxis_title=None)
-
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_yaxes(range=[min_val, max_val])
-
-    fig.update_layout(
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend_title_text=''
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# BTC Funding Rate
-with third_row[1]:
-    cols_to_keep = ['BTC Funding Rate']
-    df = merge_dataframes(data_dict, cols_to_keep)
-
-    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
-
-    min_val = data_subset['Aggregated'].min()
-    max_val = data_subset['Aggregated'].max()
-
-    mask_positive = df['Aggregated'] >= 0
-    mask_negative = df['Aggregated'] < 0
-
-    # create figure
+    # Create figure with secondary y-axis
     fig = go.Figure()
 
-    # add positive bar
-    fig.add_trace(go.Bar(
-        x=df.index[mask_positive],
-        y=df['Aggregated'][mask_positive],
-        marker=dict(color='green'),
-        name='Positive Funding Rate'
-    ))
+    # Add traces
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['BTC LTH Supply'],
+            name="BTC LTH Supply",
+            line=dict(color='#5218F8'),
+        )
+    )
 
-    # add negative bar
-    fig.add_trace(go.Bar(
-        x=df.index[mask_negative],
-        y=df['Aggregated'][mask_negative],
-        marker=dict(color='red'),
-        name='Negative Funding Rate'
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['BTC STH Supply'],
+            name="BTC STH Supply",
+            line=dict(color='#F8184E'),
+            yaxis="y2"
+        )
+    )
 
+    # Create axis objects
     fig.update_layout(
-        title_text="BTC: Aggregate Funding Rate (8 hr)",
+        yaxis=dict(
+            title="BTC LTH Supply",
+
+        ),
+        yaxis2=dict(
+            title="BTC STH Supply",
+            anchor="free",
+            overlaying="y",
+            side="right",
+            position=1
+        )
+    )
+
+    # Update layout properties
+    fig.update_layout(
+        title_text="BTC: Long-Term vs Short-Term Holder Supply",
         title={
             'y': distance_from_plot,
             'x': 0,
@@ -524,12 +545,33 @@ with third_row[1]:
             xanchor="center",
             x=0.5,
             itemsizing='constant'
-        ),
-        barmode='relative'
+        )
     )
-
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_yaxes(range=[min_val, max_val])
+    st.plotly_chart(fig, use_container_width=True)
+
+# BTC HODL Waves
+with third_row[1]:
+    cols_to_keep = ['BTC Realized Cap HODL Waves']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    df = df.dropna()
+
+    df_normalized = df.div(df.sum(axis=1), axis=0)
+
+    fig = px.area(df_normalized, labels={"value": "Percent (%)"},
+                  title='BTC: Realized Cap HODL Waves')
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
+    fig.update_yaxes(tickformat=".0%")
+
+    fig.update_layout(
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend_title_text=''
+    )
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -617,11 +659,213 @@ with third_row[2]:
     fig.update_yaxes(range=[liq_min_val, liq_max_val], secondary_y=True)
     st.plotly_chart(fig, use_container_width=True)
 
+st.header('ETH Metrics')
+st.markdown('-------------------------')
+
+# Current and average BTC metrics
+eth_funding_metrics = st.columns(2)
+
+with eth_funding_metrics[0]:
+    current_funding_rate = data_dict['ETH Funding Rate']['Aggregated'].iloc[-1]
+    st.metric(label='Current Funding Rate', value=f'{round(current_funding_rate, 2)}%')
+
+with eth_funding_metrics[1]:
+    average_funding_rate = data_dict['ETH Funding Rate']['Aggregated'].loc[zoom_in_date_start:zoom_in_date_end].mean()
+    st.metric(label='Average Funding Rate (1YR)', value=f'{round(average_funding_rate, 2)}%')
+
+eth_oi_metrics = st.columns(4)
+
+with eth_oi_metrics[0]:
+    current_oi = data_dict['ETH Open Interest']['Aggregated'].iloc[-1]
+    st.metric(label='Current Open Interest', value=big_number_formatter(current_oi))
+
+with eth_oi_metrics[1]:
+    average_oi = data_dict['ETH Open Interest']['Aggregated'].loc[zoom_in_date_start:zoom_in_date_end].mean()
+    st.metric(label='Average Open Interest (1YR)', value=big_number_formatter(average_oi))
+
+with eth_oi_metrics[2]:
+    may_top = '2021-05-11'
+    may_top_oi = data_dict['ETH Open Interest']['Aggregated'].loc[may_top].values[0]
+    st.metric(label='2021 May Top OI', value=big_number_formatter(may_top_oi))
+
+with eth_oi_metrics[3]:
+    nov_top = '2021-11-09'
+    nov_top_oi = data_dict['ETH Open Interest']['Aggregated'].loc[nov_top].values[0]
+    st.metric(label='2021 November Top OI',
+              value=big_number_formatter(nov_top_oi))
+
 # Fourth row
 fourth_row = st.columns(3)
 
-# ETH Active Addresses
+# ETH Open Interest
 with fourth_row[0]:
+    cols_to_keep = ['ETH Open Interest']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    cols_to_plot = [col for col in df.columns if col != 'Aggregated']
+    df = df.replace(0, np.nan)
+    df = df.interpolate(method='linear')
+
+    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
+
+    min_val = 0
+    max_val = data_subset['Aggregated'].max()
+
+    fig = px.area(df[cols_to_plot], title='ETH: Total OI by Exchange',
+                  labels={"value": "Percent (%)"})
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
+
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_yaxes(range=[min_val, max_val])
+
+    fig.update_layout(
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend_title_text=''
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# ETH Funding Rate
+with fourth_row[1]:
+    cols_to_keep = ['ETH Funding Rate']
+    df = merge_dataframes(data_dict, cols_to_keep)
+
+    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
+
+    min_val = data_subset['Aggregated'].min()
+    max_val = data_subset['Aggregated'].max()
+
+    mask_positive = df['Aggregated'] >= 0
+    mask_negative = df['Aggregated'] < 0
+
+    # create figure
+    fig = go.Figure()
+
+    # add positive bar
+    fig.add_trace(go.Bar(
+        x=df.index[mask_positive],
+        y=df['Aggregated'][mask_positive],
+        marker=dict(color='green'),
+        name='Positive Funding Rate'
+    ))
+
+    # add negative bar
+    fig.add_trace(go.Bar(
+        x=df.index[mask_negative],
+        y=df['Aggregated'][mask_negative],
+        marker=dict(color='red'),
+        name='Negative Funding Rate'
+    ))
+
+    fig.update_layout(
+        title_text="ETH: Aggregate Funding Rate (8 hr)",
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            itemsizing='constant'
+        ),
+        barmode='relative'
+    )
+
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_yaxes(range=[min_val, max_val])
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# ETH Correlations with S&P500 and Gold
+with fourth_row[2]:
+    # """
+    # Correlations computed using asset returns instead of asset prices
+    #
+    # Rationale:
+    # Returns are unit-less and scale independent, making them easier to compare across different assets.
+    # Prices, on the other hand, can vary widely in magnitude across different assets or over time
+    # for the same asset, which can distort correlations
+    # """
+    cols_to_keep = ['ETH Price and Market Cap', 'S&P500 Price', 'Gold Price']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    df = df[['Price', 'S&P500 Price', 'Gold Price']]
+    df = df.replace(0, np.nan)  # replace 0 with NaN
+    df = df.dropna()
+
+    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
+
+    rolling_window = 90
+    returns = df.pct_change().dropna()
+    returns['S&P 500'] = returns['Price'].rolling(rolling_window).corr(returns['S&P500 Price'])
+    returns['Gold'] = returns['Price'].rolling(rolling_window).corr(returns['Gold Price'])
+
+    min_val = returns[['S&P 500', 'Gold']].min(axis=1)
+    max_val = returns[['S&P 500', 'Gold']].max(axis=1)
+
+    fig = px.line(returns[['S&P 500', 'Gold']], title='ETH: Correlation with S&P 500 and Gold',
+                  color_discrete_sequence=SYNCRACY_COLORS)
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
+    fig.update_yaxes(tickformat=".0%")
+
+    fig.update_layout(
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            itemsizing='constant'
+        ),
+        legend_title_text=''
+    )
+
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_yaxes(range=[min_val, max_val])
+    st.plotly_chart(fig, use_container_width=True)
+
+# Fifth row
+fifth_row = st.columns(3)
+
+# ETH Transaction Types Breakdown
+with fifth_row[0]:
+    cols_to_keep = ['ETH Transaction Types Breakdown']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    df = df.dropna()
+
+    df_normalized = df.div(df.sum(axis=1), axis=0)
+
+    fig = px.area(df_normalized, labels={"value": "Percent (%)"},
+                  title='ETH: Gas Used by Transaction Type')
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
+    fig.update_yaxes(tickformat=".0%")
+
+    fig.update_layout(
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend_title_text=''
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# ETH Active Addresses
+with fifth_row[1]:
     cols_to_keep = ['ETH Active Addresses Count']
     df = merge_dataframes(data_dict, cols_to_keep)
     df = df.dropna()
@@ -648,8 +892,8 @@ with fourth_row[0]:
 
     st.plotly_chart(fig, use_container_width=True)
 
-# ETH gas price vs transactions count
-with fourth_row[1]:
+# ETH Gas Price and Transactions
+with fifth_row[2]:
     cols_to_keep = ['ETH Gas Price Mean', 'ETH Transactions Count']
     df = merge_dataframes(data_dict, cols_to_keep)
     df = df.dropna()
@@ -722,173 +966,8 @@ with fourth_row[1]:
     fig.update_yaxes(range=[tx_min_val, tx_max_val], secondary_y=True)
     st.plotly_chart(fig, use_container_width=True)
 
-# ETH Transactions by Type
-with fourth_row[2]:
-    cols_to_keep = ['ETH Transaction Types Breakdown']
-    df = merge_dataframes(data_dict, cols_to_keep)
-    df = df.dropna()
-
-    df_normalized = df.div(df.sum(axis=1), axis=0)
-
-    fig = px.area(df_normalized, labels={"value": "Percent (%)"},
-                  title='ETH: Gas Used by Transaction Type')
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_layout(xaxis_title=None, yaxis_title=None)
-    fig.update_yaxes(tickformat=".0%")
-
-    fig.update_layout(
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend_title_text=''
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# Fifth row
-fifth_row = st.columns(3)
-
-# ETH Correlations to S&P500 and Gold
-with fifth_row[0]:
-    # """
-    # Correlations computed using asset returns instead of asset prices
-    #
-    # Rationale:
-    # Returns are unit-less and scale independent, making them easier to compare across different assets.
-    # Prices, on the other hand, can vary widely in magnitude across different assets or over time
-    # for the same asset, which can distort correlations
-    # """
-    cols_to_keep = ['ETH Price and Market Cap', 'S&P500 Price', 'Gold Price']
-    df = merge_dataframes(data_dict, cols_to_keep)
-    df = df[['Price', 'S&P500 Price', 'Gold Price']]
-    df = df.replace(0, np.nan)  # replace 0 with NaN
-    df = df.dropna()
-
-    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
-
-    rolling_window = 90
-    returns = df.pct_change().dropna()
-    returns['S&P 500'] = returns['Price'].rolling(rolling_window).corr(returns['S&P500 Price'])
-    returns['Gold'] = returns['Price'].rolling(rolling_window).corr(returns['Gold Price'])
-
-    min_val = returns[['S&P 500', 'Gold']].min(axis=1)
-    max_val = returns[['S&P 500', 'Gold']].max(axis=1)
-
-    fig = px.line(returns[['S&P 500', 'Gold']], title='ETH: Correlation with S&P 500 and Gold',
-                  color_discrete_sequence=SYNCRACY_COLORS)
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_layout(xaxis_title=None, yaxis_title=None)
-    fig.update_yaxes(tickformat=".0%")
-
-    fig.update_layout(
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            itemsizing='constant'
-        ),
-        legend_title_text=''
-    )
-
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_yaxes(range=[min_val, max_val])
-    st.plotly_chart(fig, use_container_width=True)
-
-# ETH Total Open Interest
-with fifth_row[1]:
-    cols_to_keep = ['ETH Open Interest']
-    df = merge_dataframes(data_dict, cols_to_keep)
-    cols_to_plot = [col for col in df.columns if col != 'Aggregated']
-    df = df.replace(0, np.nan)
-    df = df.interpolate(method='linear')
-
-    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
-
-    min_val = 0
-    max_val = data_subset['Aggregated'].max()
-
-    fig = px.area(df[cols_to_plot], title='ETH: Total OI by Exchange',
-                  labels={"value": "Percent (%)"})
-    fig.update_layout(xaxis_title=None, yaxis_title=None)
-
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_yaxes(range=[min_val, max_val])
-
-    fig.update_layout(
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend_title_text=''
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# ETH Funding Rate
-with fifth_row[2]:
-    cols_to_keep = ['ETH Funding Rate']
-    df = merge_dataframes(data_dict, cols_to_keep)
-
-    data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
-
-    min_val = data_subset['Aggregated'].min()
-    max_val = data_subset['Aggregated'].max()
-
-    mask_positive = df['Aggregated'] >= 0
-    mask_negative = df['Aggregated'] < 0
-
-    # create figure
-    fig = go.Figure()
-
-    # add positive bar
-    fig.add_trace(go.Bar(
-        x=df.index[mask_positive],
-        y=df['Aggregated'][mask_positive],
-        marker=dict(color='green'),
-        name='Positive Funding Rate'
-    ))
-
-    # add negative bar
-    fig.add_trace(go.Bar(
-        x=df.index[mask_negative],
-        y=df['Aggregated'][mask_negative],
-        marker=dict(color='red'),
-        name='Negative Funding Rate'
-    ))
-
-    fig.update_layout(
-        title_text="ETH: Aggregate Funding Rate (8 hr)",
-        title={
-            'y': distance_from_plot,
-            'x': 0,
-            'xanchor': 'left',
-            'yanchor': 'top'},
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            itemsizing='constant'
-        ),
-        barmode='relative'
-    )
-
-    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    fig.update_yaxes(range=[min_val, max_val])
-
-    st.plotly_chart(fig, use_container_width=True)
-
+st.header('General Metrics')
+st.markdown('-------------------------')
 # Sixth row
 sixth_row = st.columns(3)
 
@@ -1093,4 +1172,90 @@ with sixth_row[2]:
     )
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    st.plotly_chart(fig, use_container_width=True)
+
+seventh_row = st.columns(3)
+
+# RRP and TGA
+with seventh_row[0]:
+    cols_to_keep = ['FedBal', 'RRP', 'TGA']
+    df = merge_dataframes(data_dict, cols_to_keep)
+    df = df.replace(to_replace=0, method='ffill')
+    df.dropna(inplace=True)
+
+    cut_off_date = '2000-03-01'
+    df = df.loc[cut_off_date:]
+
+    # Scale Liquidity Index
+    df['FedBal'] = df['FedBal'] * 1_000_000
+    df['RRP'] = df['RRP'] * 1_000_000_000
+    df['TGA'] = df['TGA'] * 1_000_000_000
+
+    # Create figure with secondary y-axis
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['FedBal'],
+            mode='lines',
+            line=dict(color='#F8184E'),
+            name='Fed Balance'
+        ))
+
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['TGA'],
+            mode='lines',
+            name='TGA',
+            yaxis="y2",
+            line=dict(color='#5218F8')
+        ))
+
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['RRP'],
+            mode='lines',
+            name='RRP',
+            yaxis="y2",
+            line=dict(color='#C218F8')
+        ))
+
+    # Create axis objects
+    fig.update_layout(
+        yaxis=dict(
+            title="Fed Balance",
+
+        ),
+        yaxis2=dict(
+            title="RRP, TGA",
+            anchor="free",
+            overlaying="y",
+            side="right",
+            position=1
+        )
+    )
+
+    # Update layout properties
+    fig.update_layout(
+        title_text="Liquidity Index Components",
+        title={
+            'y': distance_from_plot,
+            'x': 0,
+            'xanchor': 'left',
+            'yanchor': 'top'},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            itemsizing='constant'
+        )
+    )
+    fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    # fig.update_yaxes(range=[price_min_val, price_max_val])
+    # fig.update_yaxes(range=[liq_min_val, liq_max_val], secondary_y=True)
     st.plotly_chart(fig, use_container_width=True)
