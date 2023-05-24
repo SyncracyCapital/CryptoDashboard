@@ -252,6 +252,7 @@ with first_row[0]:
             'yanchor': 'top'}
     )
 
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # BTC Aggregate Funding Rate
@@ -306,6 +307,7 @@ with first_row[1]:
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
+    fig.update_layout(hovermode="x unified")
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -322,8 +324,7 @@ with first_row[2]:
     min_val = 0
     max_val = data_subset['Aggregated'].max()
 
-    fig = px.area(df[cols_to_plot], title='BTC: Total OI by Exchange',
-                  labels={"value": "Percent (%)"})
+    fig = px.area(df[cols_to_plot], title='BTC: Total OI by Exchange')
     fig.update_layout(xaxis_title=None, yaxis_title=None)
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
@@ -338,6 +339,7 @@ with first_row[2]:
         legend_title_text=''
     )
 
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Second row
@@ -397,6 +399,7 @@ with second_row[0]:
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
 
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # BTC Correlation with S&P 500 and Gold
@@ -450,6 +453,7 @@ with second_row[1]:
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Bitcoin Open Interest to Market Cap Ratio
@@ -480,7 +484,7 @@ with second_row[2]:
             'xanchor': 'left',
             'yanchor': 'top'}
     )
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Third Row
@@ -548,6 +552,7 @@ with third_row[0]:
         )
     )
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # BTC HODL Waves
@@ -572,7 +577,7 @@ with third_row[1]:
             'yanchor': 'top'},
         legend_title_text=''
     )
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # BTC vs Liquidity Index
@@ -657,6 +662,7 @@ with third_row[2]:
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[price_min_val, price_max_val])
     fig.update_yaxes(range=[liq_min_val, liq_max_val], secondary_y=True)
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 st.header('ETH Metrics')
@@ -710,8 +716,7 @@ with fourth_row[0]:
     min_val = 0
     max_val = data_subset['Aggregated'].max()
 
-    fig = px.area(df[cols_to_plot], title='ETH: Total OI by Exchange',
-                  labels={"value": "Percent (%)"})
+    fig = px.area(df[cols_to_plot], title='ETH: Total OI by Exchange')
     fig.update_layout(xaxis_title=None, yaxis_title=None)
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
@@ -726,6 +731,7 @@ with fourth_row[0]:
         legend_title_text=''
     )
 
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # ETH Funding Rate
@@ -780,7 +786,7 @@ with fourth_row[1]:
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # ETH Correlations with S&P500 and Gold
@@ -834,6 +840,7 @@ with fourth_row[2]:
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Fifth row
@@ -861,18 +868,19 @@ with fifth_row[0]:
             'yanchor': 'top'},
         legend_title_text=''
     )
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # ETH Active Addresses
 with fifth_row[1]:
     cols_to_keep = ['ETH Active Addresses Count']
     df = merge_dataframes(data_dict, cols_to_keep)
+    df['30-Day MA'] = df['ETH Active Addresses Count'].rolling(30).mean()
     df = df.dropna()
 
-    fig = px.line(df, x=df.index, y=df.columns, title='ETH: Active Addresses')
-    fig.update_traces(line=dict(color="#5218fa"))
-    fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None)
+    fig = px.line(df, x=df.index, y=df.columns, title='ETH: Active Addresses',
+                  color_discrete_sequence=SYNCRACY_COLORS)
+    fig.update_layout(xaxis_title=None, yaxis_title=None)
 
     data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
 
@@ -887,9 +895,18 @@ with fifth_row[1]:
             'y': distance_from_plot,
             'x': 0,
             'xanchor': 'left',
-            'yanchor': 'top'}
+            'yanchor': 'top'},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            itemsizing='constant'
+        ),
+        legend_title_text=''
     )
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # ETH Gas Price and Transactions
@@ -964,6 +981,7 @@ with fifth_row[2]:
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[gas_min_val, gas_max_val])
     fig.update_yaxes(range=[tx_min_val, tx_max_val], secondary_y=True)
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 st.header('General Metrics')
@@ -1053,6 +1071,7 @@ with sixth_row[0]:
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[price_min_val, price_max_val])
     fig.update_yaxes(range=[liq_min_val, liq_max_val], secondary_y=True)
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Stablecoin Transfer Volume
@@ -1060,15 +1079,17 @@ with sixth_row[1]:
     cols_to_keep = ['USDT Transfers Volume', 'USDC Transfers Volume', 'BUSD Transfers Volume',
                     'DAI Transfers Volume']
     df = merge_dataframes(data_dict, cols_to_keep)
-    df.columns = ['USDT', 'USDC', 'BUSD', 'DAI']
+    df['Aggregate'] = df.sum(axis=1)
+    df['30-Day MA (Agg)'] = df['Aggregate'].rolling(window=30).mean()
+    df.columns = ['USDT', 'USDC', 'BUSD', 'DAI', 'Aggregate', '30-Day MA (Agg)']
     data_subset = df.loc[zoom_in_date_start:zoom_in_date_end]
 
     min_val = 0
     max_val = data_subset.max()
 
-    fig = px.line(df, title='Stablecoin Transfer Volume')
+    cols_to_plot = ['USDT', 'USDC', 'BUSD', 'DAI', '30-Day MA (Agg)']
+    fig = px.line(df[cols_to_plot], title='Stablecoin Transfer Volume')
     fig.update_layout(xaxis_title=None, yaxis_title=None)
-
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
     fig.update_yaxes(range=[min_val, max_val])
 
@@ -1088,7 +1109,7 @@ with sixth_row[1]:
         ),
         legend_title_text=''
     )
-
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 # Market Realized Value Net Position Change
@@ -1172,6 +1193,7 @@ with sixth_row[2]:
     )
 
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
 seventh_row = st.columns(3)
@@ -1256,6 +1278,5 @@ with seventh_row[0]:
         )
     )
     fig.update_xaxes(type="date", range=[zoom_in_date_start, zoom_in_date_end])
-    # fig.update_yaxes(range=[price_min_val, price_max_val])
-    # fig.update_yaxes(range=[liq_min_val, liq_max_val], secondary_y=True)
+    fig.update_layout(hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
