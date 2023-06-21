@@ -31,7 +31,6 @@ st.markdown(markdown, unsafe_allow_html=True)
 
 st.markdown('-------------------')
 
-# Todo Move this to secrets.toml
 # Data Sources configuration
 # Glassnode settings
 base_api_url = 'https://api.glassnode.com/v1/metrics'
@@ -250,6 +249,19 @@ with first_row[0]:
             'x': 0,
             'xanchor': 'left',
             'yanchor': 'top'}
+    )
+
+    fig.add_shape(
+        type="line",
+        x0=df.index.min(),
+        x1=df.index.max(),
+        y0=1,
+        y1=1,
+        line=dict(
+            color="Red",
+            width=1.5,
+            dash="dash",
+        ),
     )
 
     fig.update_layout(hovermode="x unified")
