@@ -998,6 +998,43 @@ with fifth_row[2]:
 
 st.header('General Metrics')
 st.markdown('-------------------------')
+
+# Current and average BTC metrics
+liquidity_index_metrics = st.columns(3)
+
+cols_to_keep = ['FedBal', 'RRP', 'TGA']
+liquidity_index_df = merge_dataframes(data_dict, cols_to_keep)
+liquidity_index_df = liquidity_index_df.replace(to_replace=0, method='ffill')
+liquidity_index_df.dropna(inplace=True)
+
+cut_off_date = '2014-03-01'
+liquidity_index_df = liquidity_index_df.loc[cut_off_date:]
+
+# Scale Liquidity Index
+liquidity_index_df['FedBal'] = liquidity_index_df['FedBal'] * 1_000_000
+liquidity_index_df['RRP'] = liquidity_index_df['RRP'] * 1_000_000_000
+liquidity_index_df['TGA'] = liquidity_index_df['TGA'] * 1_000_000_000
+
+liquidity_index_df['Liquidity Index'] = liquidity_index_df['FedBal'] - liquidity_index_df['RRP'] - liquidity_index_df[
+    'TGA']
+
+liquidity_index_30_day_change = liquidity_index_df['Liquidity Index'].diff(periods=30)
+liquidity_index_90_day_change = liquidity_index_df['Liquidity Index'].diff(periods=90)
+liquidity_index_1_year_change = liquidity_index_df['Liquidity Index'].diff(periods=252)
+
+
+with liquidity_index_metrics[0]:
+    st.metric(label='Net Liquidity Index 30-day Change',
+              value=f'{big_number_formatter(liquidity_index_30_day_change.iloc[-1])}')
+
+with liquidity_index_metrics[1]:
+    st.metric(label='Net Liquidity Index 90-day Change',
+              value=f'{big_number_formatter(liquidity_index_90_day_change.iloc[-1])}')
+
+with liquidity_index_metrics[2]:
+    st.metric(label='Net Liquidity Index 1-year Change',
+              value=f'{big_number_formatter(liquidity_index_1_year_change.iloc[-1])}')
+
 # Sixth row
 sixth_row = st.columns(3)
 

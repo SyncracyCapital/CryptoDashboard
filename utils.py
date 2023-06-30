@@ -8,7 +8,7 @@ from aiocache.serializers import PickleSerializer
 def big_number_formatter(x):
     """The two args are the value and tick position."""
     formatter_thresholds = 1_000_000_000
-    if x < formatter_thresholds:
+    if abs(x) < formatter_thresholds:
         return '${:1.2f}M'.format(x * 1e-6)
     else:
         return '${:1.2f}B'.format(x * 1e-9)
